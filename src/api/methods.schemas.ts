@@ -885,11 +885,12 @@ export interface GetExperimentAssignmentsResponse {
 	assignments: Assignment[];
 }
 
-export type GetExperimentForUiResponseParticipantType = ParticipantsDef | null;
+export type GetExperimentForUiResponseExperimentSchema =
+	ParticipantsSchemaOutput | null;
 
 export interface GetExperimentForUiResponse {
 	config: ExperimentConfig;
-	participant_type: GetExperimentForUiResponseParticipantType;
+	experiment_schema: GetExperimentForUiResponseExperimentSchema;
 }
 
 export type GetExperimentResponseStoppedAssignmentsAt = string | null;

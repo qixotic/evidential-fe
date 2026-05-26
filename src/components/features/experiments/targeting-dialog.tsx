@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import { Box, Button, Dialog, Flex } from '@radix-ui/themes';
-import { MagnifyingGlassIcon } from '@radix-ui/react-icons';
-import { useInspectTableInDatasource } from '@/api/admin';
 import {
   CMABExperimentSpecOutput,
   DataType,
   DesignSpecOutput,
   MABExperimentSpecOutput,
   OnlineFrequentistExperimentSpecOutput,
+  ParticipantsSchemaOutput,
   PreassignedFrequentistExperimentSpecOutput,
 } from '@/api/methods.schemas';
 import { MetricDisplay, MetricsSection } from '@/components/features/experiments/sections/metrics-section';
@@ -17,10 +16,11 @@ import { DatasourceTargetingSection } from '@/components/features/experiments/se
 import { ContextsSection } from '@/components/features/experiments/sections/contexts-section';
 import { OutcomesPriorSection } from '@/components/features/experiments/sections/outcomes-prior-section';
 import { WebhooksSection } from '@/components/features/experiments/sections/webhooks-section';
+import { MagnifyingGlassIcon } from '@radix-ui/react-icons';
 
 interface TargetingDialogProps {
   designSpec: DesignSpecOutput;
-  datasourceId: string;
+  experimentSchema: ParticipantsSchemaOutput | null | undefined;
   webhookIds: string[];
 }
 
@@ -41,16 +41,11 @@ const toMdePercent = (value: number | null | undefined): string => {
   return (value * 100).toFixed(1);
 };
 
-export function TargetingDialog({ designSpec, datasourceId, webhookIds }: TargetingDialogProps) {
+export function TargetingDialog({ designSpec, experimentSchema, webhookIds }: TargetingDialogProps) {
   const [open, setOpen] = useState(false);
 
-  const tableName = isFrequentistSpec(designSpec) ? designSpec.table_name : undefined;
-  const { data: tableData } = useInspectTableInDatasource(datasourceId, tableName ?? '', undefined, {
-    swr: { enabled: !!tableName },
-  });
-
   const fieldTypeByName = new Map(
-    (tableData?.fields ?? []).map((field) => {
+    (experimentSchema?.fields ?? []).map((field) => {
       return [field.field_name, field.data_type];
     }),
   );
