@@ -18,7 +18,7 @@ import {
 import { CheckCircledIcon, CrossCircledIcon, LightningBoltIcon } from '@radix-ui/react-icons';
 import { ExperimentFormData } from './experiment-form-def';
 import { ExperimentFreqStackScreenMessage } from './experiment-freq-stack-screen';
-import { usePowerCheck } from '@/api/admin';
+import { powerCheck, usePowerCheck } from '@/api/admin';
 import { convertToFrequentistDesignSpec } from './experiment-form-helpers';
 import { GenericErrorCallout } from '@/components/ui/generic-error';
 import { ZodError } from 'zod';
@@ -82,7 +82,11 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
   const [estimatedMde, setEstimatedMde] = useState<number | null | undefined>(undefined);
   const [estimatedMdeLoading, setEstimatedMdeLoading] = useState(false);
 
-  const parsedCustomSampleSize = customSampleSize === '' ? undefined : Number.parseInt(customSampleSize, 10);
+  const customSampleSizeAsNumber = customSampleSize === '' ? undefined : Number(customSampleSize);
+  const parsedCustomSampleSize =
+    customSampleSizeAsNumber !== undefined && Number.isInteger(customSampleSizeAsNumber)
+      ? customSampleSizeAsNumber
+      : undefined;
   const debouncedCustomSampleSize = useDebounced(parsedCustomSampleSize, CUSTOM_SAMPLE_DEBOUNCE_MS);
 
   const { enabled } = isPowerCheckButtonEnabled(isMutating, data); // TODO: present reason field
@@ -91,12 +95,15 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
     if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
       return;
     }
+    if (data.desiredN === debouncedCustomSampleSize) {
+      return;
+    }
     dispatch({ type: 'set-chosen-n', value: debouncedCustomSampleSize });
-  }, [debouncedCustomSampleSize, selectedSampleOption, dispatch]);
+  }, [data.desiredN, debouncedCustomSampleSize, selectedSampleOption, dispatch]);
 
   useEffect(() => {
     if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
-      setEstimatedMde(undefined);
+      setEstimatedMdeLoading(false);
       return;
     }
     if (
@@ -105,13 +112,16 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
       debouncedCustomSampleSize <= 0
     ) {
       setEstimatedMde(undefined);
+      setEstimatedMdeLoading(false);
       return;
     }
-    if (!data.tableName || !data.primaryKey || !data.primaryMetric) {
+    if (!data.datasourceId || !data.tableName || !data.primaryKey || !data.primaryMetric) {
+      setEstimatedMdeLoading(false);
       return;
     }
 
-    let cancelled = false;
+    const datasourceId = data.datasourceId;
+    const abortController = new AbortController();
     setEstimatedMdeLoading(true);
 
     void (async () => {
@@ -119,8 +129,8 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
         const design_spec = convertToFrequentistDesignSpec(data, {
           desiredN: debouncedCustomSampleSize,
         });
-        const response = await trigger({ design_spec });
-        if (cancelled) {
+        const response = await powerCheck(datasourceId, { design_spec }, { signal: abortController.signal });
+        if (abortController.signal.aborted) {
           return;
         }
         const primary = response.analyses.find(
@@ -128,24 +138,25 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
         );
         setEstimatedMde(primary?.pct_change_with_desired_n ?? null);
       } catch {
-        if (!cancelled) {
+        if (!abortController.signal.aborted) {
           setEstimatedMde(undefined);
         }
       } finally {
-        if (!cancelled) {
+        if (!abortController.signal.aborted) {
           setEstimatedMdeLoading(false);
         }
       }
     })();
 
     return () => {
-      cancelled = true;
+      abortController.abort();
     };
     // Intentionally omit full `data` to avoid refetching on unrelated form updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- design-spec fields listed explicitly
   }, [
     data.primaryKey,
     data.primaryMetric,
+    data.datasourceId,
     data.tableName,
     data.confidence,
     data.power,
@@ -161,7 +172,6 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
     data.endDate,
     debouncedCustomSampleSize,
     selectedSampleOption,
-    trigger,
   ]);
 
   const handlePowerCheck = async (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -174,7 +184,7 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
 
     // TODO: reimplement this to be simpler
     try {
-      const design_spec = convertToFrequentistDesignSpec(data);
+      const design_spec = convertToFrequentistDesignSpec(data, { includeExistingDesiredN: false });
       const response = await trigger({ design_spec });
       const primary = response.analyses.find((a) => a.metric_spec.field_name === data.primaryMetric?.metric.field_name);
 
@@ -422,19 +432,33 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
                     value={PowerCheckOption.USE_POWER_CHECK}
                     disabled={powerCheckTarget === undefined || powerCheckTarget === 0}
                   >
-                    Use minimum sample required: {powerCheckTarget ?? 'N/A'}
+                    <Flex align="center" direction="column" gap="2">
+                      <Text size="2">Use minimum sample required:</Text>
+                      <Text size="2">{powerCheckTarget ?? 'N/A'}</Text>
+                      <Flex align="center" style={{ minHeight: '24px' }}>
+                        {data.primaryMetric?.mde !== undefined && (
+                          <Badge color="purple" variant="soft" size="2">
+                            Target MDE: {data.primaryMetric.mde}%
+                          </Badge>
+                        )}
+                      </Flex>
+                    </Flex>
                   </RadioCards.Item>
                   <RadioCards.Item
                     value={PowerCheckOption.USE_ALL_NON_NULL_SAMPLES}
                     disabled={nonNullSamples === undefined || nonNullSamples === 0}
                   >
-                    Use all available non-null samples: {nonNullSamples}
+                    <Flex align="center" direction="column" gap="2">
+                      <Text size="2">Use all available non-null samples:</Text>
+                      <Text size="2">{nonNullSamples ?? 'N/A'}</Text>
+                      <Flex align="center" style={{ minHeight: '24px' }}></Flex>
+                    </Flex>
                   </RadioCards.Item>
                   <RadioCards.Item
                     value={PowerCheckOption.ENTER_OWN}
                     disabled={allSamples === undefined || allSamples === 0}
                   >
-                    <Flex align="start" direction="column" gap="2" style={{ pointerEvents: 'auto', width: '100%' }}>
+                    <Flex align="center" direction="column" gap="2" style={{ pointerEvents: 'auto', width: '100%' }}>
                       <Text size="2">Use custom sample size:</Text>
                       <TextField.Root
                         style={{ width: '100%' }}
@@ -446,20 +470,19 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
                         onChange={(e) => setCustomSampleSize(e.target.value)}
                         placeholder="Type your own desired #."
                       />
-                      {selectedSampleOption === PowerCheckOption.ENTER_OWN &&
-                        debouncedCustomSampleSize !== undefined &&
-                        debouncedCustomSampleSize > 0 && (
+                      <Flex align="center" style={{ minHeight: '24px' }}>
+                        {selectedSampleOption === PowerCheckOption.ENTER_OWN && estimatedMdeLoading && (
                           <Badge color="purple" variant="soft" size="2">
-                            {estimatedMdeLoading ? (
-                              <>
-                                <Spinner size="1" />
-                                Estimating MDE…
-                              </>
-                            ) : estimatedMde != null ? (
-                              `Estimated MDE: ${(estimatedMde * 100).toFixed(1)}%`
-                            ) : null}
+                            Estimated MDE: …
+                            <Spinner size="1" />
                           </Badge>
                         )}
+                        {!estimatedMdeLoading && estimatedMde != null && (
+                          <Badge color="purple" variant="soft" size="2">
+                            Estimated MDE: {(estimatedMde * 100).toFixed(1)}%
+                          </Badge>
+                        )}
+                      </Flex>
                     </Flex>
                   </RadioCards.Item>
                 </Flex>
