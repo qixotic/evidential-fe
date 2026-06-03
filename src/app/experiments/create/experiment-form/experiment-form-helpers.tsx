@@ -55,7 +55,10 @@ const zodNumberFromForm = (configure?: (num: z.ZodNumber) => z.ZodNumber) =>
 
 const zodMde = zodNumberFromForm((num) => num.int().safe().min(0).max(100));
 
-export function convertToFrequentistDesignSpec(data: ExperimentFormData): AnyFrequentistDesignSpecInput {
+export function convertToFrequentistDesignSpec(
+  data: ExperimentFormData,
+  options?: { desiredN?: number },
+): AnyFrequentistDesignSpecInput {
   if (!isFreqExperimentType(data.experimentType)) {
     throw new Error('Frequentist configuration is required.');
   }
@@ -101,13 +104,13 @@ export function convertToFrequentistDesignSpec(data: ExperimentFormData): AnyFre
     alpha: data.confidence ? 1 - Number(data.confidence) / 100.0 : 0.05,
   };
 
+  const desiredN = options?.desiredN ?? (data.experimentType === 'freq_preassigned' ? data.desiredN : undefined);
+
   const spec = createExperimentBody.strict().parse({
     design_spec: {
       ...commonFields,
       experiment_type: data.experimentType,
-      ...(data.experimentType === 'freq_preassigned' && data.desiredN !== undefined
-        ? { desired_n: data.desiredN }
-        : {}),
+      ...(desiredN !== undefined ? { desired_n: desiredN } : {}),
     },
   }).design_spec;
 

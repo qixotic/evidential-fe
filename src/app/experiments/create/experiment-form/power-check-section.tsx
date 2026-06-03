@@ -22,8 +22,11 @@ import { usePowerCheck } from '@/api/admin';
 import { convertToFrequentistDesignSpec } from './experiment-form-helpers';
 import { GenericErrorCallout } from '@/components/ui/generic-error';
 import { ZodError } from 'zod';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SectionCard } from '@/components/ui/cards/section-card';
+import { useDebounced } from '@/providers/use-debounced';
+
+const CUSTOM_SAMPLE_DEBOUNCE_MS = 400;
 
 enum PowerCheckOption {
   USE_POWER_CHECK = 'use_power_check',
@@ -75,8 +78,91 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
   const [nonNullSamples, setNonNullSamples] = useState<number | undefined>();
   const [allSamples, setAllSamples] = useState<number | undefined>();
   const [selectedSampleOption, setSelectedSampleOption] = useState<PowerCheckOption>(PowerCheckOption.USE_POWER_CHECK);
+  const [customSampleSize, setCustomSampleSize] = useState('');
+  const [estimatedMde, setEstimatedMde] = useState<number | null | undefined>(undefined);
+  const [estimatedMdeLoading, setEstimatedMdeLoading] = useState(false);
+
+  const parsedCustomSampleSize = customSampleSize === '' ? undefined : Number.parseInt(customSampleSize, 10);
+  const debouncedCustomSampleSize = useDebounced(parsedCustomSampleSize, CUSTOM_SAMPLE_DEBOUNCE_MS);
 
   const { enabled } = isPowerCheckButtonEnabled(isMutating, data); // TODO: present reason field
+
+  useEffect(() => {
+    if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
+      return;
+    }
+    dispatch({ type: 'set-chosen-n', value: debouncedCustomSampleSize });
+  }, [debouncedCustomSampleSize, selectedSampleOption, dispatch]);
+
+  useEffect(() => {
+    if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
+      setEstimatedMde(undefined);
+      return;
+    }
+    if (
+      debouncedCustomSampleSize === undefined ||
+      !Number.isFinite(debouncedCustomSampleSize) ||
+      debouncedCustomSampleSize <= 0
+    ) {
+      setEstimatedMde(undefined);
+      return;
+    }
+    if (!data.tableName || !data.primaryKey || !data.primaryMetric) {
+      return;
+    }
+
+    let cancelled = false;
+    setEstimatedMdeLoading(true);
+
+    void (async () => {
+      try {
+        const design_spec = convertToFrequentistDesignSpec(data, {
+          desiredN: debouncedCustomSampleSize,
+        });
+        const response = await trigger({ design_spec });
+        if (cancelled) {
+          return;
+        }
+        const primary = response.analyses.find(
+          (a) => a.metric_spec.field_name === data.primaryMetric?.metric.field_name,
+        );
+        setEstimatedMde(primary?.pct_change_with_desired_n ?? null);
+      } catch {
+        if (!cancelled) {
+          setEstimatedMde(undefined);
+        }
+      } finally {
+        if (!cancelled) {
+          setEstimatedMdeLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally omit full `data` to avoid refetching on unrelated form updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- design-spec fields listed explicitly
+  }, [
+    data.primaryKey,
+    data.primaryMetric,
+    data.tableName,
+    data.confidence,
+    data.power,
+    data.filters,
+    data.strata,
+    data.arms,
+    data.secondaryMetrics,
+    data.experimentType,
+    data.name,
+    data.hypothesis,
+    data.designUrl,
+    data.startDate,
+    data.endDate,
+    debouncedCustomSampleSize,
+    selectedSampleOption,
+    trigger,
+  ]);
 
   const handlePowerCheck = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -348,23 +434,32 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
                     value={PowerCheckOption.ENTER_OWN}
                     disabled={allSamples === undefined || allSamples === 0}
                   >
-                    <Flex align="center" direction={'row'} gap="2">
-                      <span>Use custom sample size:</span>
-                      <div style={{ pointerEvents: 'auto' }}>
-                        <TextField.Root
-                          style={{ width: '250px' }}
-                          size="2"
-                          type="number"
-                          max={allSamples ?? undefined}
-                          onChange={(e) =>
-                            dispatch({
-                              type: 'set-chosen-n',
-                              value: e.target.value === '' ? undefined : Number(e.target.value),
-                            })
-                          }
-                          placeholder="Type your own desired #."
-                        />
-                      </div>
+                    <Flex align="start" direction="column" gap="2" style={{ pointerEvents: 'auto', width: '100%' }}>
+                      <Text size="2">Use custom sample size:</Text>
+                      <TextField.Root
+                        style={{ width: '100%' }}
+                        size="2"
+                        type="number"
+                        min={1}
+                        max={allSamples ?? undefined}
+                        value={customSampleSize}
+                        onChange={(e) => setCustomSampleSize(e.target.value)}
+                        placeholder="Type your own desired #."
+                      />
+                      {selectedSampleOption === PowerCheckOption.ENTER_OWN &&
+                        debouncedCustomSampleSize !== undefined &&
+                        debouncedCustomSampleSize > 0 && (
+                          <Badge color="purple" variant="soft" size="2">
+                            {estimatedMdeLoading ? (
+                              <>
+                                <Spinner size="1" />
+                                Estimating MDE…
+                              </>
+                            ) : estimatedMde != null ? (
+                              `Estimated MDE: ${(estimatedMde * 100).toFixed(1)}%`
+                            ) : null}
+                          </Badge>
+                        )}
                     </Flex>
                   </RadioCards.Item>
                 </Flex>
