@@ -124,6 +124,49 @@ export function convertToFrequentistDesignSpec(
   return spec;
 }
 
+/** JSON key of form fields that affect `convertToFrequentistDesignSpec` (excludes `desired_n`). */
+export function serializeFrequentistPowerCheckFormInputs(data: ExperimentFormData): string {
+  return JSON.stringify({
+    experimentType: data.experimentType,
+    name: data.name,
+    hypothesis: data.hypothesis,
+    designUrl: data.designUrl,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    tableName: data.tableName,
+    primaryKey: data.primaryKey,
+    primaryMetric: data.primaryMetric,
+    secondaryMetrics: data.secondaryMetrics,
+    filters: data.filters,
+    strata: data.strata,
+    arms: data.arms,
+    confidence: data.confidence,
+    power: data.power,
+  });
+}
+
+export type CustomSampleEstimatedMdeRequest = {
+  design_spec: AnyFrequentistDesignSpecInput;
+  primaryMetricFieldName: string;
+};
+
+export function buildCustomSampleEstimatedMdeRequest(
+  data: ExperimentFormData,
+  desiredN: number,
+): CustomSampleEstimatedMdeRequest | null {
+  if (!data.tableName || !data.primaryKey || !data.primaryMetric?.metric.field_name) {
+    return null;
+  }
+  try {
+    return {
+      design_spec: convertToFrequentistDesignSpec(data, { desiredN }),
+      primaryMetricFieldName: data.primaryMetric.metric.field_name,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function convertToBanditCreateRequest(data: ExperimentFormData): CreateExperimentRequest {
   if (data.bandit === undefined) {
     throw new Error('Bandit configuration is required.');

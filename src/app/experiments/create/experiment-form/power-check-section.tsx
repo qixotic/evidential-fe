@@ -18,8 +18,9 @@ import {
 import { CheckCircledIcon, CrossCircledIcon, LightningBoltIcon } from '@radix-ui/react-icons';
 import { ExperimentFormData } from './experiment-form-def';
 import { ExperimentFreqStackScreenMessage } from './experiment-freq-stack-screen';
-import { powerCheck, usePowerCheck } from '@/api/admin';
+import { usePowerCheck } from '@/api/admin';
 import { convertToFrequentistDesignSpec } from './experiment-form-helpers';
+import { useCustomSampleEstimatedMde } from './use-custom-sample-estimated-mde';
 import { GenericErrorCallout } from '@/components/ui/generic-error';
 import { ZodError } from 'zod';
 import { useEffect, useState } from 'react';
@@ -81,14 +82,20 @@ function RunPowerCheckButton({ enabled, onClick, loading }: PowerCheckButtonProp
 }
 
 export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
-  const { trigger, isMutating, error } = usePowerCheck(data.datasourceId!);
+  const datasourceId = data.datasourceId!;
+  const { trigger, isMutating, error } = usePowerCheck(datasourceId);
+
   const [validationError, setValidationError] = useState<ZodError | null>(null);
   const [powerCheckTarget, setPowerCheckTarget] = useState<number | undefined>();
   const [nonNullSamples, setNonNullSamples] = useState<number | undefined>();
   const [allSamples, setAllSamples] = useState<number | undefined>();
   const [selectedSampleOption, setSelectedSampleOption] = useState<PowerCheckOption>(PowerCheckOption.USE_POWER_CHECK);
-  const [estimatedMde, setEstimatedMde] = useState<number | null | undefined>(undefined);
-  const [estimatedMdeLoading, setEstimatedMdeLoading] = useState(false);
+
+  const { estimatedMde, isLoading: isEstimatedMdeLoading } = useCustomSampleEstimatedMde(
+    data,
+    datasourceId,
+    selectedSampleOption === PowerCheckOption.ENTER_OWN,
+  );
 
   const [draftN, setDraftN] = useState('');
   const committedN = parseCommittedSampleN(draftN);
@@ -105,74 +112,6 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
     }
     dispatch({ type: 'set-chosen-n', value: debouncedCommittedN });
   }, [debouncedCommittedN, selectedSampleOption, data.desiredN, dispatch]);
-
-  useEffect(() => {
-    if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
-      setEstimatedMdeLoading(false);
-      return;
-    }
-    const desiredN = data.desiredN;
-    if (desiredN === undefined || !Number.isFinite(desiredN) || desiredN <= 0) {
-      setEstimatedMde(undefined);
-      setEstimatedMdeLoading(false);
-      return;
-    }
-    if (!data.datasourceId || !data.tableName || !data.primaryKey || !data.primaryMetric) {
-      setEstimatedMdeLoading(false);
-      return;
-    }
-
-    const datasourceId = data.datasourceId;
-    let active = true;
-    setEstimatedMdeLoading(true);
-
-    void (async () => {
-      try {
-        const design_spec = convertToFrequentistDesignSpec(data, { desiredN });
-        const response = await powerCheck(datasourceId, { design_spec });
-        if (!active) {
-          return;
-        }
-        const primary = response.analyses.find(
-          (a) => a.metric_spec.field_name === data.primaryMetric?.metric.field_name,
-        );
-        setEstimatedMde(primary?.pct_change_with_desired_n ?? null);
-      } catch {
-        if (active) {
-          setEstimatedMde(undefined);
-        }
-      } finally {
-        if (active) {
-          setEstimatedMdeLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-    // Intentionally omit full `data` to avoid refetching on unrelated form updates.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- design-spec fields listed explicitly
-  }, [
-    data.primaryKey,
-    data.primaryMetric,
-    data.datasourceId,
-    data.tableName,
-    data.confidence,
-    data.power,
-    data.filters,
-    data.strata,
-    data.arms,
-    data.secondaryMetrics,
-    data.experimentType,
-    data.name,
-    data.hypothesis,
-    data.designUrl,
-    data.startDate,
-    data.endDate,
-    data.desiredN,
-    selectedSampleOption,
-  ]);
 
   const handlePowerCheck = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -473,13 +412,13 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
                         placeholder="Type your own desired #."
                       />
                       <Flex align="center" style={{ minHeight: '24px' }}>
-                        {selectedSampleOption === PowerCheckOption.ENTER_OWN && estimatedMdeLoading && (
+                        {selectedSampleOption === PowerCheckOption.ENTER_OWN && isEstimatedMdeLoading && (
                           <Badge color="purple" variant="soft" size="2">
                             Estimated MDE: …
                             <Spinner size="1" />
                           </Badge>
                         )}
-                        {!estimatedMdeLoading && estimatedMde != null && (
+                        {!isEstimatedMdeLoading && estimatedMde != null && (
                           <Badge color="purple" variant="soft" size="2">
                             Estimated MDE: {(estimatedMde * 100).toFixed(1)}%
                           </Badge>
