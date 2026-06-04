@@ -28,6 +28,15 @@ import { useDebounced } from '@/providers/use-debounced';
 
 const CUSTOM_SAMPLE_DEBOUNCE_MS = 400;
 
+/** Parsed positive integer from custom-sample draft text, or undefined if empty/invalid. */
+function parseCommittedSampleN(draft: string): number | undefined {
+  if (draft === '') {
+    return undefined;
+  }
+  const n = Number(draft);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
 enum PowerCheckOption {
   USE_POWER_CHECK = 'use_power_check',
   USE_ALL_NON_NULL_SAMPLES = 'use_all_non_null_samples',
@@ -78,16 +87,12 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
   const [nonNullSamples, setNonNullSamples] = useState<number | undefined>();
   const [allSamples, setAllSamples] = useState<number | undefined>();
   const [selectedSampleOption, setSelectedSampleOption] = useState<PowerCheckOption>(PowerCheckOption.USE_POWER_CHECK);
-  const [customSampleSize, setCustomSampleSize] = useState('');
   const [estimatedMde, setEstimatedMde] = useState<number | null | undefined>(undefined);
   const [estimatedMdeLoading, setEstimatedMdeLoading] = useState(false);
 
-  const customSampleSizeAsNumber = customSampleSize === '' ? undefined : Number(customSampleSize);
-  const parsedCustomSampleSize =
-    customSampleSizeAsNumber !== undefined && Number.isInteger(customSampleSizeAsNumber)
-      ? customSampleSizeAsNumber
-      : undefined;
-  const debouncedCustomSampleSize = useDebounced(parsedCustomSampleSize, CUSTOM_SAMPLE_DEBOUNCE_MS);
+  const [draftN, setDraftN] = useState('');
+  const committedN = parseCommittedSampleN(draftN);
+  const debouncedCommittedN = useDebounced(committedN, CUSTOM_SAMPLE_DEBOUNCE_MS);
 
   const { enabled } = isPowerCheckButtonEnabled(isMutating, data); // TODO: present reason field
 
@@ -95,22 +100,19 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
     if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
       return;
     }
-    if (data.desiredN === debouncedCustomSampleSize) {
+    if (data.desiredN === debouncedCommittedN) {
       return;
     }
-    dispatch({ type: 'set-chosen-n', value: debouncedCustomSampleSize });
-  }, [data.desiredN, debouncedCustomSampleSize, selectedSampleOption, dispatch]);
+    dispatch({ type: 'set-chosen-n', value: debouncedCommittedN });
+  }, [debouncedCommittedN, selectedSampleOption, data.desiredN, dispatch]);
 
   useEffect(() => {
     if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
       setEstimatedMdeLoading(false);
       return;
     }
-    if (
-      debouncedCustomSampleSize === undefined ||
-      !Number.isFinite(debouncedCustomSampleSize) ||
-      debouncedCustomSampleSize <= 0
-    ) {
+    const desiredN = data.desiredN;
+    if (desiredN === undefined || !Number.isFinite(desiredN) || desiredN <= 0) {
       setEstimatedMde(undefined);
       setEstimatedMdeLoading(false);
       return;
@@ -121,16 +123,14 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
     }
 
     const datasourceId = data.datasourceId;
-    const abortController = new AbortController();
+    let active = true;
     setEstimatedMdeLoading(true);
 
     void (async () => {
       try {
-        const design_spec = convertToFrequentistDesignSpec(data, {
-          desiredN: debouncedCustomSampleSize,
-        });
-        const response = await powerCheck(datasourceId, { design_spec }, { signal: abortController.signal });
-        if (abortController.signal.aborted) {
+        const design_spec = convertToFrequentistDesignSpec(data, { desiredN });
+        const response = await powerCheck(datasourceId, { design_spec });
+        if (!active) {
           return;
         }
         const primary = response.analyses.find(
@@ -138,18 +138,18 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
         );
         setEstimatedMde(primary?.pct_change_with_desired_n ?? null);
       } catch {
-        if (!abortController.signal.aborted) {
+        if (active) {
           setEstimatedMde(undefined);
         }
       } finally {
-        if (!abortController.signal.aborted) {
+        if (active) {
           setEstimatedMdeLoading(false);
         }
       }
     })();
 
     return () => {
-      abortController.abort();
+      active = false;
     };
     // Intentionally omit full `data` to avoid refetching on unrelated form updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- design-spec fields listed explicitly
@@ -170,7 +170,7 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
     data.designUrl,
     data.startDate,
     data.endDate,
-    debouncedCustomSampleSize,
+    data.desiredN,
     selectedSampleOption,
   ]);
 
@@ -217,6 +217,8 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
         dispatch({ type: 'set-chosen-n', value: nonNullSamples });
         break;
       case PowerCheckOption.ENTER_OWN:
+        dispatch({ type: 'set-chosen-n', value: parseCommittedSampleN(draftN) });
+        break;
       case PowerCheckOption.NONE:
         dispatch({ type: 'set-chosen-n', value: undefined });
         break;
@@ -466,8 +468,8 @@ export function PowerCheckSection({ data, dispatch }: PowerCheckSectionProps) {
                         type="number"
                         min={1}
                         max={allSamples ?? undefined}
-                        value={customSampleSize}
-                        onChange={(e) => setCustomSampleSize(e.target.value)}
+                        value={draftN}
+                        onChange={(e) => setDraftN(e.target.value)}
                         placeholder="Type your own desired #."
                       />
                       <Flex align="center" style={{ minHeight: '24px' }}>
