@@ -1,5 +1,6 @@
 import { FlatCompat } from '@eslint/eslintrc';
 import nextPlugin from '@next/eslint-plugin-next';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
 const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
@@ -19,7 +20,8 @@ const eslintConfig = [
       ...nextPlugin.configs['core-web-vitals'].rules,
     },
   },
-  ...compat.extends('next/typescript', 'prettier'),
+  ...compat.extends('next/typescript'),
+  eslintConfigPrettier,
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
