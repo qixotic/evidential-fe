@@ -1,4 +1,5 @@
 import { FlatCompat } from '@eslint/eslintrc';
+import nextPlugin from '@next/eslint-plugin-next';
 
 const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
@@ -9,7 +10,16 @@ const eslintConfig = [
   {
     ignores: ['.next/**', 'next-env.d.ts', 'src/api/**/*', 'orval.config.ts'],
   },
-  ...compat.extends('next/core-web-vitals', 'next/typescript', 'prettier'),
+  {
+    plugins: {
+      '@next/next': nextPlugin,
+    },
+    rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs['core-web-vitals'].rules,
+    },
+  },
+  ...compat.extends('next/typescript', 'prettier'),
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
