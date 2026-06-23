@@ -276,6 +276,7 @@ export const createExperimentBodyDesignSpecFstatThreshDefault = 0.6;
 export const createExperimentBodyDesignSpecFstatThreshMin = 0;
 export const createExperimentBodyDesignSpecFstatThreshMax = 1;
 
+
 export const createExperimentBodyDesignSpecExperimentNameMaxOne = 100;
 
 export const createExperimentBodyDesignSpecDescriptionMaxOne = 2000;
@@ -417,7 +418,8 @@ export const createExperimentBody = zod.object({
   "power": zod.number().min(createExperimentBodyDesignSpecPowerMin).max(createExperimentBodyDesignSpecPowerMax).default(createExperimentBodyDesignSpecPowerDefault),
   "alpha": zod.number().min(createExperimentBodyDesignSpecAlphaMin).max(createExperimentBodyDesignSpecAlphaMax).default(createExperimentBodyDesignSpecAlphaDefault),
   "fstat_thresh": zod.number().min(createExperimentBodyDesignSpecFstatThreshMin).max(createExperimentBodyDesignSpecFstatThreshMax).default(createExperimentBodyDesignSpecFstatThreshDefault),
-  "cluster_key": zod.union([zod.string(),zod.null()]).optional()
+  "cluster_key": zod.union([zod.string(),zod.null()]).optional(),
+  "desired_n_clusters": zod.union([zod.number().min(1),zod.null()]).optional()
 }),zod.object({
   "experiment_type": zod.enum(['freq_online']),
   "experiment_name": zod.string().max(createExperimentBodyDesignSpecExperimentNameMaxOne),
@@ -664,6 +666,7 @@ export const powerCheckBodyDesignSpecFstatThreshDefault = 0.6;
 export const powerCheckBodyDesignSpecFstatThreshMin = 0;
 export const powerCheckBodyDesignSpecFstatThreshMax = 1;
 
+
 export const powerCheckBodyDesignSpecExperimentNameMaxOne = 100;
 
 export const powerCheckBodyDesignSpecDescriptionMaxOne = 2000;
@@ -741,7 +744,8 @@ export const powerCheckBody = zod.object({
   "power": zod.number().min(powerCheckBodyDesignSpecPowerMin).max(powerCheckBodyDesignSpecPowerMax).default(powerCheckBodyDesignSpecPowerDefault),
   "alpha": zod.number().min(powerCheckBodyDesignSpecAlphaMin).max(powerCheckBodyDesignSpecAlphaMax).default(powerCheckBodyDesignSpecAlphaDefault),
   "fstat_thresh": zod.number().min(powerCheckBodyDesignSpecFstatThreshMin).max(powerCheckBodyDesignSpecFstatThreshMax).default(powerCheckBodyDesignSpecFstatThreshDefault),
-  "cluster_key": zod.union([zod.string(),zod.null()]).optional()
+  "cluster_key": zod.union([zod.string(),zod.null()]).optional(),
+  "desired_n_clusters": zod.union([zod.number().min(1),zod.null()]).optional()
 }),zod.object({
   "experiment_type": zod.enum(['freq_online']),
   "experiment_name": zod.string().max(powerCheckBodyDesignSpecExperimentNameMaxOne),
