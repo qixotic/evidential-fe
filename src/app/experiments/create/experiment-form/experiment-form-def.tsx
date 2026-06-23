@@ -202,6 +202,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
           };
         }
@@ -387,6 +388,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -402,6 +404,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -417,6 +420,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -428,6 +432,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -439,6 +444,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -451,6 +457,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -467,6 +474,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -479,6 +487,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -490,6 +499,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -501,6 +511,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -514,6 +525,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -538,6 +550,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -549,6 +562,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             powerCheckResponse: undefined,
             mdePowerCheckResponse: undefined,
             desiredN: undefined,
+            desiredNClusters: undefined,
             sampleSizeOption: undefined,
             createExperimentError: undefined,
           };
@@ -567,7 +581,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
                 // change a value while the request was in flight?
                 // (We cannot check for sampleSizeOption && desiredN mismatches because they start off undefined.)
                 const expected_stringified_spec = JSON.stringify(
-                  convertToFrequentistDesignSpec({ ...data, desiredN: undefined }),
+                  convertToFrequentistDesignSpec({ ...data, desiredN: undefined, desiredNClusters: undefined }),
                 );
                 if (JSON.stringify(msg.designSpec) !== expected_stringified_spec) {
                   return data;
@@ -577,6 +591,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
                 ...data,
                 sampleSizeOption: msg.sampleSizeOption,
                 desiredN: msg.desiredN,
+                desiredNClusters: msg.desiredNClusters,
                 powerCheckResponse: msg.response,
                 createExperimentError: undefined,
                 ...clusterStatsFromPowerCheck,
@@ -585,8 +600,12 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
             case PowerCheckOption.ENTER_OWN:
               if (msg.type === 'set-power-check-response') {
                 // For handling async MDE responses, to check for stale requests we only need to
-                // verify that the option and desiredN haven't changed since the request was made.
-                if (msg.sampleSizeOption !== data.sampleSizeOption || msg.desiredN !== data.desiredN) {
+                // verify that the option and desired sample size haven't changed since the request was made.
+                if (
+                  msg.sampleSizeOption !== data.sampleSizeOption ||
+                  msg.desiredN !== data.desiredN ||
+                  msg.desiredNClusters !== data.desiredNClusters
+                ) {
                   return data;
                 }
               }
@@ -594,6 +613,7 @@ export const ExperimentForm: WizardForm<ExperimentFormData, ExperimentScreenId, 
                 ...data,
                 sampleSizeOption: msg.sampleSizeOption,
                 desiredN: msg.desiredN,
+                desiredNClusters: msg.desiredNClusters,
                 mdePowerCheckResponse: msg.response,
                 createExperimentError: undefined,
                 ...clusterStatsFromPowerCheck,

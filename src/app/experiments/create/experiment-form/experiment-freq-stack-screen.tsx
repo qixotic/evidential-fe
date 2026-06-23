@@ -70,6 +70,9 @@ const getNextDisabledReasons = (data: ExperimentFormData): string[] => {
     if (data.desiredN === undefined || data.desiredN === 0) {
       reasons.push('Select a sample size.');
     }
+    if (data.clusterKey && (data.desiredNClusters === undefined || data.desiredNClusters === 0)) {
+      reasons.push('Select a cluster count.');
+    }
 
     // desiredN must not exceed the primary metric's available samples
     const availableN = getPrimaryAnalysisAvailableN(data);
