@@ -12,6 +12,7 @@ import { ClusterStatisticsSectionAction } from './cluster-statistics-section';
 import { NavigationButtons } from '@/components/features/experiments/navigation-buttons';
 import {
   convertToFrequentistDesignSpec,
+  getDesiredNClusters,
   removeFieldByName,
 } from '@/app/experiments/create/experiment-form/experiment-form-helpers';
 import { getPowerAnalysis } from '@/services/experiment-utils';
@@ -82,6 +83,10 @@ const getNextDisabledReasons = (data: ExperimentFormData): string[] => {
       reasons.push(
         `Desired N (${data.desiredN.toLocaleString()}) exceeds the primary metric's available samples (${availableN.toLocaleString()}).`,
       );
+    }
+
+    if (data.clusterKey && getDesiredNClusters(data) === undefined) {
+      reasons.push('Select a valid cluster sample size.');
     }
 
     // If in MDE mode, must have an MDE estimate

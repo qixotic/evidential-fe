@@ -12,7 +12,8 @@ import {
   Stratum,
 } from '@/api/methods.schemas';
 import { createExperimentBody } from '@/api/admin.zod';
-import { ExperimentFormData } from './experiment-form-types';
+import { estimateClusterN } from '@/components/features/experiments/metric-sample-size-display';
+import { ExperimentFormData, PowerCheckOption } from './experiment-form-types';
 import { getCanonicalRewardType } from '@/app/experiments/create/experiment-form/experiment-bandit-helpers';
 import { isFreqExperimentType, isFrequentistSpec, getPowerAnalysis } from '@/services/experiment-utils';
 
@@ -82,6 +83,31 @@ export const getClusterStatsFromPowerCheckResponse = (
   };
 };
 
+/** Cluster count to sample when creating a cluster-randomized preassigned experiment. */
+export const getDesiredNClusters = (data: ExperimentFormData): number | undefined => {
+  if (!data.clusterKey || data.desiredN === undefined) return undefined;
+
+  const primaryFieldName = data.primaryMetric?.metric.field_name;
+  if (!primaryFieldName) return undefined;
+
+  if (data.sampleSizeOption === PowerCheckOption.USE_POWER_CHECK) {
+    const primary = getPowerAnalysis(data.powerCheckResponse, primaryFieldName);
+    if (primary?.num_clusters_total != null) {
+      return primary.num_clusters_total;
+    }
+  }
+
+  const mdeOrPowerResponse =
+    data.sampleSizeOption === PowerCheckOption.USE_ALL_NON_NULL_SAMPLES ||
+    data.sampleSizeOption === PowerCheckOption.ENTER_OWN
+      ? data.mdePowerCheckResponse
+      : data.powerCheckResponse;
+
+  const primary = getPowerAnalysis(mdeOrPowerResponse, primaryFieldName);
+  const avgClusterSize = primary?.metric_spec.avg_cluster_size ?? data.clusterAvgClusterSize;
+  return estimateClusterN(data.desiredN, avgClusterSize);
+};
+
 export function convertToFrequentistDesignSpec(data: ExperimentFormData): AnyFrequentistDesignSpec {
   if (!isFreqExperimentType(data.experimentType)) {
     throw new Error('Frequentist configuration is required.');
@@ -139,6 +165,10 @@ export function convertToFrequentistDesignSpec(data: ExperimentFormData): AnyFre
   };
   if (data.experimentType === 'freq_preassigned' && data.clusterKey) {
     designSpec.cluster_key = data.clusterKey;
+    const desiredNClusters = getDesiredNClusters(data);
+    if (desiredNClusters !== undefined) {
+      designSpec.desired_n_clusters = desiredNClusters;
+    }
   }
   if (data.experimentType === 'freq_preassigned' && data.desiredN !== undefined) {
     designSpec.desired_n = data.desiredN;
