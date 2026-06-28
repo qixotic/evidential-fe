@@ -24,12 +24,19 @@ interface PowerCheckDesiredNInputProps {
  * - `onChange`: latest ref called after debounce delay with a parsed positive integer, or
  * `undefined` for empty/invalid input.
  */
+const isInvalidDraftN = (input: string): boolean => {
+  if (input === '') return false;
+  const parsed = Number(input);
+  return isNaN(parsed) || parsed <= 0;
+};
+
 export function PowerCheckDesiredNInput({ value, onChange, max, label, placeholder }: PowerCheckDesiredNInputProps) {
   const [draftN, setDraftN] = useState(value);
   // Guard against the onChange function changing between debounce calls with a ref.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const debouncedValidN = useDebounced(getValidDraftN(draftN), 400);
+  const showInvalid = isInvalidDraftN(draftN);
 
   // Allow updates to the input due to prop changes, as can happen if the user chose all samples.
   useEffect(() => {
@@ -53,6 +60,7 @@ export function PowerCheckDesiredNInput({ value, onChange, max, label, placehold
         type="number"
         min={1}
         max={max}
+        color={showInvalid ? 'red' : undefined}
         value={draftN}
         onChange={(e) => setDraftN(e.target.value)}
         placeholder={placeholder ?? 'Enter your desired N'}

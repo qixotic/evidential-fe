@@ -92,9 +92,11 @@ export const getDesiredNClusters = (data: ExperimentFormData): number | undefine
 
   if (data.sampleSizeOption === PowerCheckOption.USE_POWER_CHECK) {
     const primary = getPowerAnalysis(data.powerCheckResponse, primaryFieldName);
-    if (primary?.num_clusters_total != null) {
-      return primary.num_clusters_total;
+    const numClustersTotal = primary?.num_clusters_total;
+    if (numClustersTotal != null && numClustersTotal >= 1) {
+      return numClustersTotal;
     }
+    return undefined;
   }
 
   const mdeOrPowerResponse =
@@ -105,7 +107,8 @@ export const getDesiredNClusters = (data: ExperimentFormData): number | undefine
 
   const primary = getPowerAnalysis(mdeOrPowerResponse, primaryFieldName);
   const avgClusterSize = primary?.metric_spec.avg_cluster_size ?? data.clusterAvgClusterSize;
-  return estimateClusterN(data.desiredN, avgClusterSize);
+  const clusterN = estimateClusterN(data.desiredN, avgClusterSize);
+  return clusterN !== undefined && clusterN >= 1 ? clusterN : undefined;
 };
 
 export function convertToFrequentistDesignSpec(data: ExperimentFormData): AnyFrequentistDesignSpec {

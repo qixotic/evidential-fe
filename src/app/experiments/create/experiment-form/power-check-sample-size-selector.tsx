@@ -211,7 +211,16 @@ export function PowerCheckSampleSizeSelector({
   };
 
   const handleInputChange = (newN: number | undefined) => {
-    if (newN === undefined || selectedSampleOption !== PowerCheckOption.ENTER_OWN || newN === desiredN) {
+    if (selectedSampleOption !== PowerCheckOption.ENTER_OWN) {
+      return;
+    }
+    if (newN === undefined) {
+      if (desiredN !== undefined) {
+        onOptionChange({ sampleSizeOption: selectedSampleOption, desiredN: undefined, response: undefined });
+      }
+      return;
+    }
+    if (newN === desiredN) {
       return;
     }
     onOptionChange({ sampleSizeOption: selectedSampleOption, desiredN: newN, response: undefined });
@@ -219,7 +228,11 @@ export function PowerCheckSampleSizeSelector({
   };
 
   const handleClusterInputChange = (clusterN: number | undefined) => {
-    if (clusterN === undefined || avgClusterSize === undefined) {
+    if (avgClusterSize === undefined) {
+      return;
+    }
+    if (clusterN === undefined) {
+      handleInputChange(undefined);
       return;
     }
     handleInputChange(estimateParticipantNFromClusters(clusterN, avgClusterSize));
